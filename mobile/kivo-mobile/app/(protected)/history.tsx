@@ -1,20 +1,40 @@
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppCard } from "@/components/ui/app-card";
-import { getTransactionHistory } from "@/features/transactions/transactions.service";
+import { MonthSelector } from "@/components/ui/month-selector";
+import {
+    getAccountsByTransactionType,
+    getCategoriesByType,
+} from "@/features/transactions/transaction-catalogs.service";
+import {
+    getTransactionHistory,
+    type TransactionHistoryFilters,
+} from "@/features/transactions/transactions.service";
 import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
+import type { Account, Category } from "@/types/catalogs";
 
-/**
- * Pantalla placeholder del historial de movimientos.
- */
+type FilterType = "all" | "income" | "expense";
+
 export default function HistoryScreen() {
     const session = useAuthStore((state) => state.session);
+
+    const now = new Date();
+
+    const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+
+    const [typeFilter, setTypeFilter] = useState<FilterType>("all");
+    const [categoryFilter, setCategoryFilter] = useState<string>("");
+    const [accountFilter, setAccountFilter] = useState<string>("");
+
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [accounts, setAccounts] = useState<Account[]>([]);
 
     const [items, setItems] = useState<
         Array<{
@@ -29,6 +49,33 @@ export default function HistoryScreen() {
     >([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    useEffect(() => {
+        const loadFilterCatalogs = async () => {
+            const [expenseCategories, incomeCategories] = await Promise.all([
+                getCategoriesByType("expense"),
+                getCategoriesByType("income"),
+            ]);
+
+            const mergedCategories = [...expenseCategories, ...incomeCategories].filter(
+                (item, index, array) => array.findIndex((x) => x.id === item.id) === index
+            );
+
+            const [expenseAccounts, incomeAccounts] = await Promise.all([
+                getAccountsByTransactionType("expense"),
+                getAccountsByTransactionType("income"),
+            ]);
+
+            const mergedAccounts = [...expenseAccounts, ...incomeAccounts].filter(
+                (item, index, array) => array.findIndex((x) => x.id === item.id) === index
+            );
+
+            setCategories(mergedCategories);
+            setAccounts(mergedAccounts);
+        };
+
+        void loadFilterCatalogs();
+    }, []);
+
     const loadHistory = useCallback(async () => {
         if (!session?.user.id) {
             setIsLoading(false);
@@ -37,18 +84,69 @@ export default function HistoryScreen() {
 
         try {
             setIsLoading(true);
-            const history = await getTransactionHistory(session.user.id);
+
+            const filters: TransactionHistoryFilters = {
+                year: selectedYear,
+                month: selectedMonth,
+                type: typeFilter,
+                categoryId: categoryFilter || undefined,
+                accountId: accountFilter || undefined,
+            };
+
+            const history = await getTransactionHistory(session.user.id, filters);
             setItems(history);
         } finally {
             setIsLoading(false);
         }
-    }, [session?.user.id]);
+    }, [
+        session?.user.id,
+        selectedYear,
+        selectedMonth,
+        typeFilter,
+        categoryFilter,
+        accountFilter,
+    ]);
 
     useFocusEffect(
         useCallback(() => {
             void loadHistory();
         }, [loadHistory])
     );
+
+    const handlePreviousMonth = () => {
+        if (selectedMonth === 1) {
+            setSelectedMonth(12);
+            setSelectedYear((prev) => prev - 1);
+            return;
+        }
+
+        setSelectedMonth((prev) => prev - 1);
+    };
+
+    const handleNextMonth = () => {
+        if (selectedMonth === 12) {
+            setSelectedMonth(1);
+            setSelectedYear((prev) => prev + 1);
+            return;
+        }
+
+        setSelectedMonth((prev) => prev + 1);
+    };
+
+    const filterChipStyle = (isSelected: boolean) => ({
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: isSelected ? colors.primary : colors.border,
+        backgroundColor: isSelected ? colors.primarySoft : colors.white,
+    });
+
+    const filterChipTextStyle = (isSelected: boolean) => ({
+        color: isSelected ? colors.primary : colors.text,
+        fontWeight: typography.weightSemibold as "400" | "500" | "600" | "700",
+        fontSize: typography.bodySm,
+    });
 
     return (
         <FormScreenContainer>
@@ -72,9 +170,148 @@ export default function HistoryScreen() {
                             color: colors.textMuted,
                         }}
                     >
-                        Revisa todos tus movimientos guardados localmente.
+                        Revisa tus movimientos y filtra lo que quieres analizar.
                     </Text>
                 </View>
+
+                <MonthSelector
+                    month={selectedMonth}
+                    year={selectedYear}
+                    onPrevious={handlePreviousMonth}
+                    onNext={handleNextMonth}
+                />
+
+                <AppCard style={{ marginBottom: spacing.lg }}>
+                    <Text
+                        style={{
+                            fontSize: typography.titleSection,
+                            fontWeight: typography.weightBold,
+                            color: colors.text,
+                            marginBottom: spacing.md,
+                        }}
+                    >
+                        Filtros
+                    </Text>
+
+                    <Text
+                        style={{
+                            fontSize: typography.bodySm,
+                            color: colors.textMuted,
+                            marginBottom: spacing.sm,
+                        }}
+                    >
+                        Tipo
+                    </Text>
+
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: spacing.sm,
+                            marginBottom: spacing.lg,
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={() => setTypeFilter("all")}
+                            style={filterChipStyle(typeFilter === "all")}
+                        >
+                            <Text style={filterChipTextStyle(typeFilter === "all")}>Todos</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() => setTypeFilter("income")}
+                            style={filterChipStyle(typeFilter === "income")}
+                        >
+                            <Text style={filterChipTextStyle(typeFilter === "income")}>
+                                Ingresos
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() => setTypeFilter("expense")}
+                            style={filterChipStyle(typeFilter === "expense")}
+                        >
+                            <Text style={filterChipTextStyle(typeFilter === "expense")}>
+                                Egresos
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <Text
+                        style={{
+                            fontSize: typography.bodySm,
+                            color: colors.textMuted,
+                            marginBottom: spacing.sm,
+                        }}
+                    >
+                        Categoría
+                    </Text>
+
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: spacing.sm,
+                            marginBottom: spacing.lg,
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={() => setCategoryFilter("")}
+                            style={filterChipStyle(categoryFilter === "")}
+                        >
+                            <Text style={filterChipTextStyle(categoryFilter === "")}>Todas</Text>
+                        </TouchableOpacity>
+
+                        {categories.map((category) => (
+                            <TouchableOpacity
+                                key={category.id}
+                                onPress={() => setCategoryFilter(category.id)}
+                                style={filterChipStyle(categoryFilter === category.id)}
+                            >
+                                <Text style={filterChipTextStyle(categoryFilter === category.id)}>
+                                    {category.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text
+                        style={{
+                            fontSize: typography.bodySm,
+                            color: colors.textMuted,
+                            marginBottom: spacing.sm,
+                        }}
+                    >
+                        Cuenta
+                    </Text>
+
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: spacing.sm,
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={() => setAccountFilter("")}
+                            style={filterChipStyle(accountFilter === "")}
+                        >
+                            <Text style={filterChipTextStyle(accountFilter === "")}>Todas</Text>
+                        </TouchableOpacity>
+
+                        {accounts.map((account) => (
+                            <TouchableOpacity
+                                key={account.id}
+                                onPress={() => setAccountFilter(account.id)}
+                                style={filterChipStyle(accountFilter === account.id)}
+                            >
+                                <Text style={filterChipTextStyle(accountFilter === account.id)}>
+                                    {account.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </AppCard>
 
                 {isLoading ? (
                     <View
@@ -96,7 +333,7 @@ export default function HistoryScreen() {
                                 marginBottom: spacing.xs,
                             }}
                         >
-                            Aún no hay movimientos
+                            No encontramos movimientos
                         </Text>
 
                         <Text
@@ -106,7 +343,8 @@ export default function HistoryScreen() {
                                 lineHeight: 22,
                             }}
                         >
-                            Cuando agregues tu primer ingreso o egreso, aparecerá aquí.
+                            Prueba cambiando el mes o ajustando los filtros para ver más
+                            resultados.
                         </Text>
                     </AppCard>
                 ) : (

@@ -35,13 +35,28 @@ export type TransactionDetail = {
     syncStatus: string;
 };
 
+export type TransactionHistoryFilters = {
+    year: number;
+    month: number;
+    type?: "all" | "income" | "expense";
+    categoryId?: string;
+    accountId?: string;
+};
+
 function generateLocalId(): string {
     return `txn_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/**
- * Inserta un movimiento local en SQLite con estado pending_create.
- */
+function getMonthRange(year: number, month: number) {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 1);
+
+    return {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+    };
+}
+
 export async function createTransaction(
     input: CreateTransactionInput
 ): Promise<{ localId: string }> {
@@ -89,9 +104,6 @@ export async function createTransaction(
     return { localId };
 }
 
-/**
- * Obtiene un movimiento específico por su id local.
- */
 export async function getTransactionByLocalId(
     localId: string
 ): Promise<TransactionDetail | null> {
@@ -121,11 +133,6 @@ export async function getTransactionByLocalId(
     return row ?? null;
 }
 
-/**
- * Actualiza un movimiento local.
- * Si el registro ya estaba sincronizado, se marca como pending_update.
- * Si todavía era pending_create, conserva ese estado.
- */
 export async function updateTransaction(
     input: UpdateTransactionInput
 ): Promise<void> {
@@ -173,11 +180,6 @@ export async function updateTransaction(
     );
 }
 
-/**
- * Elimina lógicamente un movimiento.
- * Si todavía no se sincronizaba, se marca también como pending_delete
- * para mantener trazabilidad uniforme del flujo.
- */
 export async function deleteTransaction(localId: string): Promise<void> {
     const db = await getDatabase();
     const now = new Date().toISOString();
@@ -195,10 +197,10 @@ export async function deleteTransaction(localId: string): Promise<void> {
     );
 }
 
-/**
- * Obtiene historial visible del usuario ordenado por fecha descendente.
- */
-export async function getTransactionHistory(userId: string): Promise<
+export async function getTransactionHistory(
+    userId: string,
+    filters: TransactionHistoryFilters
+): Promise<
     Array<{
         localId: string;
         type: "income" | "expense";
@@ -210,6 +212,33 @@ export async function getTransactionHistory(userId: string): Promise<
     }>
 > {
     const db = await getDatabase();
+    const { start, end } = getMonthRange(filters.year, filters.month);
+
+    const conditions: string[] = [
+        "t.user_id = ?",
+        "t.deleted_at IS NULL",
+        "t.transaction_date >= ?",
+        "t.transaction_date < ?",
+    ];
+
+    const params: Array<string> = [userId, start, end];
+
+    if (filters.type && filters.type !== "all") {
+        conditions.push("t.type = ?");
+        params.push(filters.type);
+    }
+
+    if (filters.categoryId) {
+        conditions.push("t.category_id = ?");
+        params.push(filters.categoryId);
+    }
+
+    if (filters.accountId) {
+        conditions.push("t.account_id = ?");
+        params.push(filters.accountId);
+    }
+
+    const whereClause = conditions.join(" AND ");
 
     return db.getAllAsync(
         `
@@ -224,10 +253,9 @@ export async function getTransactionHistory(userId: string): Promise<
       FROM transactions t
       INNER JOIN categories c ON c.id = t.category_id
       INNER JOIN accounts a ON a.id = t.account_id
-      WHERE t.user_id = ?
-        AND t.deleted_at IS NULL
+      WHERE ${whereClause}
       ORDER BY t.transaction_date DESC, t.created_at DESC
     `,
-        [userId]
+        params
     );
 }

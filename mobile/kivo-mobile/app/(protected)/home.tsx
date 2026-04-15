@@ -4,6 +4,7 @@ import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppCard } from "@/components/ui/app-card";
+import { MonthSelector } from "@/components/ui/month-selector";
 import { BRAND } from "@/constants/brand";
 import {
     getDashboardSummary,
@@ -14,13 +15,14 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 
-/**
- * Home/dashboard inicial de Kivo.
- * Busca verse más amigable, con mejor jerarquía y bloques más visuales.
- */
 export default function HomeScreen() {
     const session = useAuthStore((state) => state.session);
     const logout = useAuthStore((state) => state.logout);
+
+    const now = new Date();
+
+    const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
     const [summary, setSummary] = useState<DashboardSummary>({
         totalIncome: 0,
@@ -39,25 +41,43 @@ export default function HomeScreen() {
         try {
             setIsLoading(true);
 
-            const now = new Date();
-
             const result = await getDashboardSummary({
                 userId: session.user.id,
-                year: now.getFullYear(),
-                month: now.getMonth() + 1,
+                year: selectedYear,
+                month: selectedMonth,
             });
 
             setSummary(result);
         } finally {
             setIsLoading(false);
         }
-    }, [session?.user.id]);
+    }, [session?.user.id, selectedMonth, selectedYear]);
 
     useFocusEffect(
         useCallback(() => {
             void loadDashboard();
         }, [loadDashboard])
     );
+
+    const handlePreviousMonth = () => {
+        if (selectedMonth === 1) {
+            setSelectedMonth(12);
+            setSelectedYear((prev) => prev - 1);
+            return;
+        }
+
+        setSelectedMonth((prev) => prev - 1);
+    };
+
+    const handleNextMonth = () => {
+        if (selectedMonth === 12) {
+            setSelectedMonth(1);
+            setSelectedYear((prev) => prev + 1);
+            return;
+        }
+
+        setSelectedMonth((prev) => prev + 1);
+    };
 
     const handleLogout = async () => {
         await logout();
@@ -99,6 +119,13 @@ export default function HomeScreen() {
                         Tu resumen financiero del mes, en un solo lugar.
                     </Text>
                 </View>
+
+                <MonthSelector
+                    month={selectedMonth}
+                    year={selectedYear}
+                    onPrevious={handlePreviousMonth}
+                    onNext={handleNextMonth}
+                />
 
                 {isLoading ? (
                     <View
@@ -286,6 +313,32 @@ export default function HomeScreen() {
                                 </Text>
                             </TouchableOpacity>
                         </AppCard>
+
+                        {summary.transactionCount === 0 ? (
+                            <AppCard style={{ marginBottom: spacing.lg }}>
+                                <Text
+                                    style={{
+                                        color: colors.text,
+                                        fontSize: typography.bodyLg,
+                                        fontWeight: typography.weightSemibold,
+                                        marginBottom: spacing.xs,
+                                    }}
+                                >
+                                    Mes sin movimientos
+                                </Text>
+
+                                <Text
+                                    style={{
+                                        color: colors.textMuted,
+                                        fontSize: typography.bodyMd,
+                                        lineHeight: 22,
+                                    }}
+                                >
+                                    Aún no hay registros para este mes. Agrega uno para empezar a
+                                    ver tu resumen.
+                                </Text>
+                            </AppCard>
+                        ) : null}
 
                         <TouchableOpacity
                             onPress={handleLogout}

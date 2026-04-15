@@ -9,7 +9,6 @@ export type DashboardSummary = {
 
 /**
  * Calcula el rango ISO del mes seleccionado.
- * Se usa para consultar únicamente los movimientos del periodo.
  */
 function getMonthRange(year: number, month: number) {
   const startDate = new Date(year, month - 1, 1);
@@ -23,7 +22,6 @@ function getMonthRange(year: number, month: number) {
 
 /**
  * Obtiene el resumen local del dashboard para un mes específico.
- * Solo considera movimientos no eliminados lógicamente.
  */
 export async function getDashboardSummary(params: {
   userId: string;
