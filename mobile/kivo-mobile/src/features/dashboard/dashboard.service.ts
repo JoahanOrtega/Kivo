@@ -1,4 +1,6 @@
 import { getDatabase } from "@/database/db";
+import { getPendingSyncCount } from "@/features/sync/sync-queue.service";
+
 
 export type SummaryByCategory = {
   categoryId: string;
@@ -34,9 +36,8 @@ function getMonthRange(year: number, month: number) {
     end: endDate.toISOString(),
   };
 }
-
 /**
- * Obtiene el resumen local del dashboard para un mes específico.
+ * Obtiene el resumen del dashboard para un mes específico.
  */
 export async function getDashboardSummary(params: {
   userId: string;
@@ -50,14 +51,12 @@ export async function getDashboardSummary(params: {
     total_income: number | null;
     total_expense: number | null;
     transaction_count: number | null;
-    pending_sync_count: number | null;
   }>(
     `
       SELECT
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income,
         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense,
-        COUNT(*) AS transaction_count,
-        COALESCE(SUM(CASE WHEN sync_status != 'synced' THEN 1 ELSE 0 END), 0) AS pending_sync_count
+        COUNT(*) AS transaction_count
       FROM transactions
       WHERE user_id = ?
         AND deleted_at IS NULL
@@ -115,13 +114,14 @@ export async function getDashboardSummary(params: {
 
   const totalIncome = Number(totalsRow?.total_income ?? 0);
   const totalExpense = Number(totalsRow?.total_expense ?? 0);
+  const pendingSyncCount = await getPendingSyncCount();
 
   return {
     totalIncome,
     totalExpense,
     balance: totalIncome - totalExpense,
     transactionCount: Number(totalsRow?.transaction_count ?? 0),
-    pendingSyncCount: Number(totalsRow?.pending_sync_count ?? 0),
+    pendingSyncCount,
     categoriesSummary: categoriesSummary.map((item) => ({
       categoryId: item.categoryId,
       categoryName: item.categoryName,

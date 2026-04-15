@@ -50,6 +50,23 @@ export async function initializeDatabase(): Promise<void> {
       deleted_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      id TEXT PRIMARY KEY NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_local_id TEXT NOT NULL,
+      operation_type TEXT NOT NULL CHECK (
+        operation_type IN ('create', 'update', 'delete')
+      ),
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (
+        status IN ('pending', 'processing', 'completed', 'failed')
+      ),
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_transactions_user_id
       ON transactions (user_id);
 
@@ -58,6 +75,12 @@ export async function initializeDatabase(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_transactions_sync_status
       ON transactions (sync_status);
+
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_status
+      ON sync_queue (status);
+
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_entity_local_id
+      ON sync_queue (entity_local_id);
   `);
 
   await seedBaseCatalogs();
@@ -87,41 +110,12 @@ async function seedBaseCatalogs(): Promise<void> {
           (?, ?, ?, 1, 1, ?, ?)
       `,
       [
-        "cat-expense-general",
-        "Gastos",
-        "expense",
-        now,
-        now,
-
-        "cat-expense-services",
-        "Servicios",
-        "expense",
-        now,
-        now,
-
-        "cat-expense-debts",
-        "Deudas",
-        "expense",
-        now,
-        now,
-
-        "cat-expense-savings",
-        "Ahorro",
-        "expense",
-        now,
-        now,
-
-        "cat-income-salary",
-        "Ingreso",
-        "income",
-        now,
-        now,
-
-        "cat-income-other",
-        "Otros ingresos",
-        "income",
-        now,
-        now,
+        "cat-expense-general", "Gastos", "expense", now, now,
+        "cat-expense-services", "Servicios", "expense", now, now,
+        "cat-expense-debts", "Deudas", "expense", now, now,
+        "cat-expense-savings", "Ahorro", "expense", now, now,
+        "cat-income-salary", "Ingreso", "income", now, now,
+        "cat-income-other", "Otros ingresos", "income", now, now,
       ]
     );
   }
@@ -143,41 +137,12 @@ async function seedBaseCatalogs(): Promise<void> {
           (?, ?, ?, 1, 1, ?, ?)
       `,
       [
-        "acc-cash",
-        "Efectivo",
-        "both",
-        now,
-        now,
-
-        "acc-bbva-credit",
-        "TDC BBVA",
-        "expense",
-        now,
-        now,
-
-        "acc-didi-credit",
-        "TDC DiDi",
-        "expense",
-        now,
-        now,
-
-        "acc-debit",
-        "Débito",
-        "both",
-        now,
-        now,
-
-        "acc-transfer",
-        "Transferencia",
-        "both",
-        now,
-        now,
-
-        "acc-payroll",
-        "Nómina",
-        "income",
-        now,
-        now,
+        "acc-cash", "Efectivo", "both", now, now,
+        "acc-bbva-credit", "TDC BBVA", "expense", now, now,
+        "acc-didi-credit", "TDC DiDi", "expense", now, now,
+        "acc-debit", "Débito", "both", now, now,
+        "acc-transfer", "Transferencia", "both", now, now,
+        "acc-payroll", "Nómina", "income", now, now,
       ]
     );
   }

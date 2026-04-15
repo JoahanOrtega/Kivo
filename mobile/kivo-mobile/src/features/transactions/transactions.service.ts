@@ -1,4 +1,5 @@
 import { getDatabase } from "@/database/db";
+import { enqueueSyncOperation } from "@/features/sync/sync-queue.service";
 
 export type CreateTransactionInput = {
     userId: string;
@@ -66,6 +67,19 @@ export async function createTransaction(
     const now = new Date().toISOString();
     const localId = generateLocalId();
 
+    const payload = {
+        localId,
+        userId: input.userId,
+        type: input.type,
+        amount: input.amount,
+        categoryId: input.categoryId,
+        accountId: input.accountId,
+        concept: input.concept ?? null,
+        budgetAmount: input.budgetAmount ?? null,
+        note: input.note ?? null,
+        transactionDate: input.transactionDate,
+    };
+
     await db.runAsync(
         `
       INSERT INTO transactions (
@@ -102,6 +116,13 @@ export async function createTransaction(
             now,
         ]
     );
+
+    await enqueueSyncOperation({
+        entityType: "transaction",
+        entityLocalId: localId,
+        operationType: "create",
+        payload,
+    });
 
     return { localId };
 }
@@ -156,19 +177,19 @@ export async function updateTransaction(
 
     await db.runAsync(
         `
-    UPDATE transactions
-    SET
-      type = ?,
-      amount = ?,
-      category_id = ?,
-      account_id = ?,
-      transaction_date = ?,
-      concept = ?,
-      note = ?,
-      sync_status = ?,
-      updated_at = ?
-    WHERE local_id = ?
-  `,
+      UPDATE transactions
+      SET
+        type = ?,
+        amount = ?,
+        category_id = ?,
+        account_id = ?,
+        transaction_date = ?,
+        concept = ?,
+        note = ?,
+        sync_status = ?,
+        updated_at = ?
+      WHERE local_id = ?
+    `,
         [
             input.type,
             input.amount,
@@ -182,6 +203,13 @@ export async function updateTransaction(
             input.localId,
         ]
     );
+
+    await enqueueSyncOperation({
+        entityType: "transaction",
+        entityLocalId: input.localId,
+        operationType: "update",
+        payload: input,
+    });
 }
 
 export async function deleteTransaction(localId: string): Promise<void> {
@@ -199,6 +227,13 @@ export async function deleteTransaction(localId: string): Promise<void> {
     `,
         [now, now, localId]
     );
+
+    await enqueueSyncOperation({
+        entityType: "transaction",
+        entityLocalId: localId,
+        operationType: "delete",
+        payload: { localId },
+    });
 }
 
 export async function getTransactionHistory(
@@ -244,13 +279,13 @@ export async function getTransactionHistory(
 
     if (filters.searchText?.trim()) {
         conditions.push(`
-    (
-      LOWER(COALESCE(t.concept, '')) LIKE ?
-      OR LOWER(COALESCE(t.note, '')) LIKE ?
-      OR LOWER(c.name) LIKE ?
-      OR LOWER(a.name) LIKE ?
-    )
-  `);
+      (
+        LOWER(COALESCE(t.concept, '')) LIKE ?
+        OR LOWER(COALESCE(t.note, '')) LIKE ?
+        OR LOWER(c.name) LIKE ?
+        OR LOWER(a.name) LIKE ?
+      )
+    `);
 
         const pattern = `%${filters.searchText.trim().toLowerCase()}%`;
         params.push(pattern, pattern, pattern, pattern);
