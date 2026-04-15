@@ -1,33 +1,43 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
+import { Controller, useForm } from "react-hook-form";
 import { Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScreenContainer } from "@/components/layout/screen-container";
+import { AppButton } from "@/components/ui/app-button";
+import { AppInput } from "@/components/ui/app-input";
 import { BRAND } from "@/constants/brand";
+import { LoginFormValues, loginSchema } from "@/features/auth/auth.schemas";
 import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/theme/colors";
 
 /**
- * Pantalla inicial de inicio de sesión.
- * En esta etapa todavía no consume backend;
- * solo valida la navegación y la estructura del proyecto.
+ * Pantalla de inicio de sesión del MVP.
+ * Valida el formulario y persiste la sesión con Secure Store.
  */
 export default function LoginScreen() {
-  const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
+  const login = useAuthStore((state) => state.login);
 
-  const handleMockLogin = () => {
-    setAuthenticated(true);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (values: LoginFormValues) => {
+    await login(values);
     router.replace("/(protected)");
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          padding: 24,
-        }}
-      >
+    <ScreenContainer>
+      <View style={{ flex: 1, justifyContent: "center" }}>
         <Text
           style={{
             fontSize: 34,
@@ -49,29 +59,49 @@ export default function LoginScreen() {
           {BRAND.tagline}
         </Text>
 
-        <TouchableOpacity
-          onPress={handleMockLogin}
-          style={{
-            backgroundColor: colors.primary,
-            paddingVertical: 14,
-            paddingHorizontal: 16,
-            borderRadius: 12,
-            marginBottom: 12,
-          }}
-        >
-          <Text
-            style={{
-              color: "#FFFFFF",
-              textAlign: "center",
-              fontSize: 16,
-              fontWeight: "600",
-            }}
-          >
-            Entrar
-          </Text>
-        </TouchableOpacity>
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, value } }) => (
+            <AppInput
+              label="Correo"
+              value={value}
+              onChangeText={onChange}
+              placeholder="ejemplo@correo.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errors.email?.message}
+            />
+          )}
+        />
 
-        <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, value } }) => (
+            <AppInput
+              label="Contraseña"
+              value={value}
+              onChangeText={onChange}
+              placeholder="Tu contraseña"
+              secureTextEntry
+              autoCapitalize="none"
+              error={errors.password?.message}
+            />
+          )}
+        />
+
+        <AppButton
+          label={isSubmitting ? "Entrando..." : "Entrar"}
+          onPress={handleSubmit(onSubmit)}
+          disabled={isSubmitting}
+          style={{ marginTop: 8 }}
+        />
+
+        <TouchableOpacity
+          onPress={() => router.push("/(auth)/register")}
+          style={{ marginTop: 16 }}
+        >
           <Text
             style={{
               color: colors.textMuted,
@@ -83,6 +113,6 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }

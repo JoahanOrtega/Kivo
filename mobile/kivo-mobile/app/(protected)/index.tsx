@@ -1,32 +1,66 @@
-import { router } from "expo-router";
-import { Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, router } from "expo-router";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
+import { ScreenContainer } from "@/components/layout/screen-container";
 import { BRAND } from "@/constants/brand";
+import { getDashboardSummary, type DashboardSummary } from "@/features/dashboard/dashboard.service";
 import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/theme/colors";
 
 /**
- * Pantalla privada inicial.
- * Funcionará como placeholder del dashboard mientras construimos el resumen real.
+ * Dashboard inicial del MVP.
+ * Lee datos reales desde SQLite aunque todavía no existan movimientos.
  */
 export default function DashboardScreen() {
+  const session = useAuthStore((state) => state.session);
   const logout = useAuthStore((state) => state.logout);
 
-  const handleLogout = () => {
-    logout();
+  const [summary, setSummary] = useState<DashboardSummary>({
+    totalIncome: 0,
+    totalExpense: 0,
+    balance: 0,
+    transactionCount: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadDashboard = useCallback(async () => {
+    if (!session?.user.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const now = new Date();
+
+      const result = await getDashboardSummary({
+        userId: session.user.id,
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
+      });
+
+      setSummary(result);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session?.user.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDashboard();
+    }, [loadDashboard])
+  );
+
+  const handleLogout = async () => {
+    await logout();
     router.replace("/(auth)/login");
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          padding: 24,
-        }}
-      >
+    <ScreenContainer>
+      <View style={{ flex: 1, justifyContent: "center" }}>
         <Text
           style={{
             fontSize: 30,
@@ -45,8 +79,40 @@ export default function DashboardScreen() {
             marginBottom: 32,
           }}
         >
-          Base del dashboard lista.
+          Dashboard local listo.
         </Text>
+
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} />
+        ) : (
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 24,
+              gap: 12,
+            }}
+          >
+            <Text style={{ fontSize: 16, color: colors.text }}>
+              Ingresos del mes: ${summary.totalIncome.toFixed(2)}
+            </Text>
+
+            <Text style={{ fontSize: 16, color: colors.text }}>
+              Egresos del mes: ${summary.totalExpense.toFixed(2)}
+            </Text>
+
+            <Text style={{ fontSize: 16, color: colors.text }}>
+              Saldo del mes: ${summary.balance.toFixed(2)}
+            </Text>
+
+            <Text style={{ fontSize: 16, color: colors.text }}>
+              Movimientos del mes: {summary.transactionCount}
+            </Text>
+          </View>
+        )}
 
         <TouchableOpacity
           onPress={() => router.push("/(protected)/history")}
@@ -115,6 +181,6 @@ export default function DashboardScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
