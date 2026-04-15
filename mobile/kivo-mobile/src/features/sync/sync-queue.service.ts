@@ -324,6 +324,53 @@ export async function getPendingSyncQueueItems(): Promise<SyncQueueItem[]> {
     }));
 }
 
+// Solo para debug y desarrollo, no se expone en la app final
+export async function getAllSyncQueueItems(): Promise<SyncQueueItem[]> {
+    const db = await getDatabase();
+
+    const rows = await db.getAllAsync<{
+        id: string;
+        entity_type: SyncEntityType;
+        entity_local_id: string;
+        operation_type: SyncOperationType;
+        payload_json: string;
+        status: "pending" | "processing" | "completed" | "failed";
+        retry_count: number;
+        last_error: string | null;
+        created_at: string;
+        updated_at: string;
+    }>(
+        `
+      SELECT
+        id,
+        entity_type,
+        entity_local_id,
+        operation_type,
+        payload_json,
+        status,
+        retry_count,
+        last_error,
+        created_at,
+        updated_at
+      FROM sync_queue
+      ORDER BY created_at DESC
+    `
+    );
+
+    return rows.map((row) => ({
+        id: row.id,
+        entityType: row.entity_type,
+        entityLocalId: row.entity_local_id,
+        operationType: row.operation_type,
+        payloadJson: row.payload_json,
+        status: row.status,
+        retryCount: row.retry_count,
+        lastError: row.last_error,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    }));
+}
+
 export async function markSyncQueueItemProcessing(id: string): Promise<void> {
     const db = await getDatabase();
     const now = new Date().toISOString();

@@ -476,6 +476,31 @@ export default function HomeScreen() {
                             </TouchableOpacity>
 
                             <TouchableOpacity
+                                onPress={() => router.push("/sync-inspector")}
+                                activeOpacity={0.85}
+                                style={{
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    backgroundColor: colors.white,
+                                    paddingVertical: 15,
+                                    paddingHorizontal: 16,
+                                    borderRadius: 16,
+                                    marginBottom: spacing.md,
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        color: colors.text,
+                                        textAlign: "center",
+                                        fontSize: typography.bodyLg,
+                                        fontWeight: typography.weightSemibold,
+                                    }}
+                                >
+                                    Ver sync queue
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
                                 onPress={() => router.push("/settings")}
                                 activeOpacity={0.85}
                                 style={{

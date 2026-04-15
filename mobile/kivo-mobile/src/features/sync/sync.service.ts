@@ -6,16 +6,8 @@ import {
 } from "@/features/sync/sync-queue.service";
 import type { SyncQueueItem } from "@/types/sync";
 
-/**
- * Tipo del ejecutor real de sync.
- * Más adelante esto apuntará a llamadas HTTP contra Axum.
- */
 export type SyncExecutor = (item: SyncQueueItem) => Promise<void>;
 
-/**
- * Procesa la cola pendiente de sync uno por uno.
- * Por ahora no llama a backend real; solo define la orquestación.
- */
 export async function processSyncQueue(
     executor: SyncExecutor
 ): Promise<{
@@ -55,8 +47,8 @@ export async function processSyncQueue(
 
 /**
  * Ejecutor temporal local.
- * Sirve para probar el flujo de la cola sin backend real.
+ * Simula una sincronización exitosa para validar el flujo end-to-end.
  */
 export async function mockSyncExecutor(_item: SyncQueueItem): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 }
