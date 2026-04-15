@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
+import { useToast } from "@/components/ui/toast-provider";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import {
     ActivityIndicator,
@@ -29,7 +30,6 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import type { Account, Category } from "@/types/catalogs";
-import { dateInputToIso, formatDateInput, getTodayDateInput } from "@/utils/date-format";
 
 export default function AddTransactionScreen() {
     const session = useAuthStore((state) => state.session);
@@ -37,6 +37,8 @@ export default function AddTransactionScreen() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(true);
+
+    const { showToast } = useToast();
 
     const {
         control,
@@ -89,20 +91,26 @@ export default function AddTransactionScreen() {
             return;
         }
 
-        Keyboard.dismiss();
+        try {
+            Keyboard.dismiss();
 
-        await createTransaction({
-            userId: session.user.id,
-            type: values.type,
-            amount: Number(values.amount),
-            categoryId: values.categoryId,
-            accountId: values.accountId,
-            concept: values.concept?.trim() || null,
-            note: values.note?.trim() || null,
-            transactionDate: values.transactionDate,
-        });
+            await createTransaction({
+                userId: session.user.id,
+                type: values.type,
+                amount: Number(values.amount),
+                categoryId: values.categoryId,
+                accountId: values.accountId,
+                concept: values.concept?.trim() || null,
+                note: values.note?.trim() || null,
+                transactionDate: values.transactionDate,
+            });
 
-        router.back();
+            showToast("Movimiento guardado", "success");
+            router.back();
+        } catch (error) {
+            console.error(error);
+            showToast("No se pudo guardar el movimiento", "error");
+        }
     };
 
     return (

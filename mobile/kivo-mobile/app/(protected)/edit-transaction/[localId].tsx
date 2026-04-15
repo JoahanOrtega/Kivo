@@ -15,6 +15,7 @@ import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppButton } from "@/components/ui/app-button";
 import { AppCard } from "@/components/ui/app-card";
 import { AppInput } from "@/components/ui/app-input";
+import { useToast } from "@/components/ui/toast-provider";
 import { DateField } from "@/components/ui/date-field";
 import {
     getAccountsByTransactionType,
@@ -33,14 +34,10 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import type { Account, Category } from "@/types/catalogs";
-import {
-    dateInputToIso,
-    formatDateInput,
-    isoToDateInput,
-} from "@/utils/date-format";
 
 export default function EditTransactionScreen() {
     const { localId } = useLocalSearchParams<{ localId: string }>();
+    const { showToast } = useToast();
 
     const [categories, setCategories] = useState<Category[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -122,20 +119,26 @@ export default function EditTransactionScreen() {
             return;
         }
 
-        Keyboard.dismiss();
+        try {
+            Keyboard.dismiss();
 
-        await updateTransaction({
-            localId,
-            type: values.type,
-            amount: Number(values.amount),
-            categoryId: values.categoryId,
-            accountId: values.accountId,
-            concept: values.concept?.trim() || null,
-            note: values.note?.trim() || null,
-            transactionDate: values.transactionDate,
-        } as any);
+            await updateTransaction({
+                localId,
+                type: values.type,
+                amount: Number(values.amount),
+                categoryId: values.categoryId,
+                accountId: values.accountId,
+                concept: values.concept?.trim() || null,
+                note: values.note?.trim() || null,
+                transactionDate: values.transactionDate,
+            });
 
-        router.back();
+            showToast("Movimiento actualizado", "success");
+            router.back();
+        } catch (error) {
+            console.error(error);
+            showToast("No se pudo actualizar", "error");
+        }
     };
 
     const handleDelete = () => {
@@ -152,8 +155,14 @@ export default function EditTransactionScreen() {
                     text: "Eliminar",
                     style: "destructive",
                     onPress: async () => {
-                        await deleteTransaction(localId);
-                        router.back();
+                        try {
+                            await deleteTransaction(localId);
+                            showToast("Movimiento eliminado", "success");
+                            router.back();
+                        } catch (error) {
+                            console.error(error);
+                            showToast("No se pudo eliminar", "error");
+                        }
                     },
                 },
             ]

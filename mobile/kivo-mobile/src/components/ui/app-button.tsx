@@ -1,4 +1,4 @@
-import { Text, TouchableOpacity, ViewStyle } from "react-native";
+import { Pressable, Text, ViewStyle } from "react-native";
 
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/radius";
@@ -13,8 +13,8 @@ type AppButtonProps = {
 };
 
 /**
- * Botón base reutilizable del sistema.
- * Permite mantener consistencia visual entre acciones primarias y secundarias.
+ * Botón reutilizable base del proyecto.
+ * Permite mantener consistencia visual y evitar estilos duplicados.
  */
 export function AppButton({
   label,
@@ -36,20 +36,20 @@ export function AppButton({
   const textColor = isPrimary ? colors.white : colors.text;
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={0.85}
-      style={{
+      style={({ pressed }) => ({
         backgroundColor,
         borderWidth: variant === "ghost" ? 0 : 1,
         borderColor,
         paddingVertical: 15,
         paddingHorizontal: 16,
         borderRadius: radius.lg,
-        opacity: disabled ? 0.6 : 1,
+        opacity: disabled ? 0.6 : pressed ? 0.85 : 1,
+        transform: [{ scale: pressed ? 0.985 : 1 }],
         ...style,
-      }}
+      })}
     >
       <Text
         style={{
@@ -61,6 +61,6 @@ export function AppButton({
       >
         {label}
       </Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 }

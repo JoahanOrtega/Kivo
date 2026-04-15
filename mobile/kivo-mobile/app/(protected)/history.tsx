@@ -4,6 +4,7 @@ import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppCard } from "@/components/ui/app-card";
+import { useToast } from "@/components/ui/toast-provider";
 import { MonthSelector } from "@/components/ui/month-selector";
 import {
     getAccountsByTransactionType,
@@ -40,6 +41,8 @@ export default function HistoryScreen() {
 
     const [searchText, setSearchText] = useState("");
     const debouncedSearchText = useDebouncedValue(searchText, 350);
+
+    const { showToast } = useToast();
 
     const [items, setItems] = useState<
         Array<{
@@ -211,7 +214,10 @@ export default function HistoryScreen() {
 
                     {searchText.trim().length > 0 ? (
                         <TouchableOpacity
-                            onPress={() => setSearchText("")}
+                            onPress={() => {
+                                setSearchText("");
+                                showToast("Búsqueda limpiada", "info");
+                            }}
                             activeOpacity={0.85}
                             style={{
                                 alignSelf: "flex-start",
@@ -481,6 +487,6 @@ export default function HistoryScreen() {
                     </View>
                 )}
             </View>
-        </FormScreenContainer>
+        </FormScreenContainer >
     );
 }
