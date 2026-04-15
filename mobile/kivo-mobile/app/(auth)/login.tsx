@@ -39,7 +39,7 @@ export default function LoginScreen() {
     const onSubmit = async (values: LoginFormValues) => {
         Keyboard.dismiss();
         await login(values);
-        router.replace("/(protected)");
+        router.replace("/home");
     };
 
     return (
@@ -96,7 +96,6 @@ export default function LoginScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 returnKeyType="next"
-                                blurOnSubmit={false}
                                 onSubmitEditing={() => passwordInputRef.current?.focus()}
                                 error={errors.email?.message}
                             />
@@ -132,7 +131,7 @@ export default function LoginScreen() {
                 </View>
 
                 <TouchableOpacity
-                    onPress={() => router.push("/(auth)/register")}
+                    onPress={() => router.push("/register")}
                     style={{ marginTop: 18 }}
                     activeOpacity={0.8}
                 >

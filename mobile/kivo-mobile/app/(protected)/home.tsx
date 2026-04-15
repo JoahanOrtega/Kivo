@@ -4,7 +4,10 @@ import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { BRAND } from "@/constants/brand";
-import { getDashboardSummary, type DashboardSummary } from "@/features/dashboard/dashboard.service";
+import {
+    getDashboardSummary,
+    type DashboardSummary,
+} from "@/features/dashboard/dashboard.service";
 import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/theme/colors";
 
@@ -55,7 +58,7 @@ export default function DashboardScreen() {
 
     const handleLogout = async () => {
         await logout();
-        router.replace("/(auth)/login");
+        router.replace("/login");
     };
 
     return (
@@ -113,9 +116,29 @@ export default function DashboardScreen() {
                         </Text>
                     </View>
                 )}
-
                 <TouchableOpacity
-                    onPress={() => router.push("/(protected)/history")}
+                    onPress={() => router.push("/add-transaction")}
+                    style={{
+                        backgroundColor: colors.primary,
+                        paddingVertical: 14,
+                        paddingHorizontal: 16,
+                        borderRadius: 12,
+                        marginBottom: 12,
+                    }}
+                >
+                    <Text
+                        style={{
+                            color: "#FFFFFF",
+                            textAlign: "center",
+                            fontSize: 16,
+                            fontWeight: "600",
+                        }}
+                    >
+                        Agregar movimiento
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => router.push("/history")}
                     style={{
                         backgroundColor: colors.primary,
                         paddingVertical: 14,
@@ -137,7 +160,7 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    onPress={() => router.push("/(protected)/settings")}
+                    onPress={() => router.push("/settings")}
                     style={{
                         borderWidth: 1,
                         borderColor: colors.border,

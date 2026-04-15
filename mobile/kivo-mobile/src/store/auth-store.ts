@@ -4,70 +4,80 @@ import { clearSession, getSession, saveSession } from "@/services/secure-session
 import type { AuthSession, AuthUser } from "@/types/auth";
 
 type AuthState = {
-  isAuthenticated: boolean;
-  isHydrated: boolean;
-  session: AuthSession | null;
-  hydrateSession: () => Promise<void>;
-  login: (payload: { email: string; password: string }) => Promise<void>;
-  logout: () => Promise<void>;
+    isAuthenticated: boolean;
+    isHydrated: boolean;
+    session: AuthSession | null;
+    hydrateSession: () => Promise<void>;
+    login: (payload: { email: string; password: string }) => Promise<void>;
+    logout: () => Promise<void>;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false,
-  isHydrated: false,
-  session: null,
+    isAuthenticated: false,
+    isHydrated: false,
+    session: null,
 
-  /**
-   * Carga la sesión persistida al iniciar la app.
-   * Esto permite restaurar el estado autenticado tras cerrar y abrir la aplicación.
-   */
-  hydrateSession: async () => {
-    const storedSession = await getSession();
+    /**
+     * Carga la sesión persistida al iniciar la app.
+     * Esto permite restaurar el estado autenticado tras cerrar y abrir la aplicación.
+     */
+    hydrateSession: async () => {
+        try {
+            const storedSession = await getSession();
 
-    set({
-      session: storedSession,
-      isAuthenticated: Boolean(storedSession),
-      isHydrated: true,
-    });
-  },
+            set({
+                session: storedSession,
+                isAuthenticated: Boolean(storedSession),
+                isHydrated: true,
+            });
+        } catch (error) {
+            console.error("Error hydrating session:", error);
 
-  /**
-   * Inicio de sesión temporal del MVP.
-   * Simula una autenticación exitosa y persiste la sesión localmente.
-   * Más adelante reemplazaremos esto por el login real contra backend.
-   */
-  login: async ({ email }: { email: string; password: string }) => {
-    const normalizedEmail = email.trim().toLowerCase();
+            set({
+                session: null,
+                isAuthenticated: false,
+                isHydrated: true,
+            });
+        }
+    },
 
-    const mockUser: AuthUser = {
-      id: "local-user-1",
-      name: "Johan",
-      email: normalizedEmail,
-    };
+    /**
+     * Inicio de sesión temporal del MVP.
+     * Simula una autenticación exitosa y persiste la sesión localmente.
+     * Más adelante reemplazaremos esto por el login real contra backend.
+     */
+    login: async ({ email }: { email: string; password: string }) => {
+        const normalizedEmail = email.trim().toLowerCase();
 
-    const mockSession: AuthSession = {
-      accessToken: "mock-access-token",
-      refreshToken: "mock-refresh-token",
-      user: mockUser,
-    };
+        const mockUser: AuthUser = {
+            id: "local-user-1",
+            name: "Johan",
+            email: normalizedEmail,
+        };
 
-    await saveSession(mockSession);
+        const mockSession: AuthSession = {
+            accessToken: "mock-access-token",
+            refreshToken: "mock-refresh-token",
+            user: mockUser,
+        };
 
-    set({
-      session: mockSession,
-      isAuthenticated: true,
-    });
-  },
+        await saveSession(mockSession);
 
-  /**
-   * Cierra la sesión en memoria y elimina la sesión persistida del dispositivo.
-   */
-  logout: async () => {
-    await clearSession();
+        set({
+            session: mockSession,
+            isAuthenticated: true,
+        });
+    },
 
-    set({
-      session: null,
-      isAuthenticated: false,
-    });
-  },
+    /**
+     * Cierra la sesión en memoria y elimina la sesión persistida del dispositivo.
+     */
+    logout: async () => {
+        await clearSession();
+
+        set({
+            session: null,
+            isAuthenticated: false,
+        });
+    },
 }));

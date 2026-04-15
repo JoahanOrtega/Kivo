@@ -4,18 +4,18 @@ import { useAuthStore } from "@/store/auth-store";
 
 /**
  * Grupo público.
- * Si el usuario ya está autenticado, no debe volver a login/register.
+ * Si ya existe sesión válida, el usuario debe ir al home privado.
  */
 export default function AuthLayout() {
-  const { isAuthenticated, isHydrated } = useAuthStore();
+    const { isAuthenticated, isHydrated } = useAuthStore();
 
-  if (!isHydrated) {
-    return null;
-  }
+    if (!isHydrated) {
+        return <Stack screenOptions={{ headerShown: false }} />;
+    }
 
-  if (isAuthenticated) {
-    return <Redirect href="/(protected)" />;
-  }
+    if (isAuthenticated) {
+        return <Redirect href="/home" />;
+    }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+    return <Stack screenOptions={{ headerShown: false }} />;
 }

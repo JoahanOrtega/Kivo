@@ -41,7 +41,7 @@ export default function RegisterScreen() {
 
     const onSubmit = async (_values: RegisterFormValues) => {
         Keyboard.dismiss();
-        router.replace("/(auth)/login");
+        router.replace("/login");
     };
 
     return (
@@ -97,7 +97,6 @@ export default function RegisterScreen() {
                                 autoCapitalize="words"
                                 autoCorrect={false}
                                 returnKeyType="next"
-                                blurOnSubmit={false}
                                 onSubmitEditing={() => emailInputRef.current?.focus()}
                                 error={errors.name?.message}
                             />
@@ -118,7 +117,6 @@ export default function RegisterScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 returnKeyType="next"
-                                blurOnSubmit={false}
                                 onSubmitEditing={() => passwordInputRef.current?.focus()}
                                 error={errors.email?.message}
                             />
@@ -139,7 +137,6 @@ export default function RegisterScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 returnKeyType="next"
-                                blurOnSubmit={false}
                                 onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
                                 error={errors.password?.message}
                             />
@@ -175,7 +172,7 @@ export default function RegisterScreen() {
                 </View>
 
                 <TouchableOpacity
-                    onPress={() => router.back()}
+                    onPress={() => router.replace("/login")}
                     style={{ marginTop: 18 }}
                     activeOpacity={0.8}
                 >

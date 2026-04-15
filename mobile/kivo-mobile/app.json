@@ -3,6 +3,7 @@
     "name": "Kivo",
     "slug": "kivo-mobile",
     "version": "1.0.0",
+    "scheme": "kivo",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
