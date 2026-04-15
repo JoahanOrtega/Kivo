@@ -14,6 +14,7 @@ import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppButton } from "@/components/ui/app-button";
 import { AppCard } from "@/components/ui/app-card";
 import { AppInput } from "@/components/ui/app-input";
+import { DateField } from "@/components/ui/date-field";
 import {
     getAccountsByTransactionType,
     getCategoriesByType,
@@ -47,7 +48,7 @@ export default function AddTransactionScreen() {
         defaultValues: {
             type: "expense",
             amount: "",
-            transactionDate: getTodayDateInput(),
+            transactionDate: new Date().toISOString(),
             categoryId: "",
             accountId: "",
             concept: "",
@@ -98,7 +99,7 @@ export default function AddTransactionScreen() {
             accountId: values.accountId,
             concept: values.concept?.trim() || null,
             note: values.note?.trim() || null,
-            transactionDate: dateInputToIso(values.transactionDate),
+            transactionDate: values.transactionDate,
         });
 
         router.back();
@@ -246,12 +247,10 @@ export default function AddTransactionScreen() {
                                 control={control}
                                 name="transactionDate"
                                 render={({ field: { value, onChange } }) => (
-                                    <AppInput
+                                    <DateField
                                         label="Fecha"
                                         value={value}
-                                        onChangeText={(text) => onChange(formatDateInput(text))}
-                                        placeholder="DD/MM/YYYY"
-                                        keyboardType="numeric"
+                                        onChange={onChange}
                                         error={errors.transactionDate?.message}
                                     />
                                 )}

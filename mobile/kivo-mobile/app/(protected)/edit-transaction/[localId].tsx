@@ -15,6 +15,7 @@ import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppButton } from "@/components/ui/app-button";
 import { AppCard } from "@/components/ui/app-card";
 import { AppInput } from "@/components/ui/app-input";
+import { DateField } from "@/components/ui/date-field";
 import {
     getAccountsByTransactionType,
     getCategoriesByType,
@@ -88,7 +89,7 @@ export default function EditTransactionScreen() {
                 reset({
                     type: transaction.type,
                     amount: String(transaction.amount),
-                    transactionDate: isoToDateInput(transaction.transactionDate),
+                    transactionDate: transaction.transactionDate,
                     categoryId: transaction.categoryId,
                     accountId: transaction.accountId,
                     concept: transaction.concept ?? "",
@@ -131,7 +132,7 @@ export default function EditTransactionScreen() {
             accountId: values.accountId,
             concept: values.concept?.trim() || null,
             note: values.note?.trim() || null,
-            transactionDate: dateInputToIso(values.transactionDate),
+            transactionDate: values.transactionDate,
         } as any);
 
         router.back();
@@ -299,12 +300,10 @@ export default function EditTransactionScreen() {
                         control={control}
                         name="transactionDate"
                         render={({ field: { value, onChange } }) => (
-                            <AppInput
+                            <DateField
                                 label="Fecha"
                                 value={value}
-                                onChangeText={(text) => onChange(formatDateInput(text))}
-                                placeholder="DD/MM/YYYY"
-                                keyboardType="numeric"
+                                onChange={onChange}
                                 error={errors.transactionDate?.message}
                             />
                         )}

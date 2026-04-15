@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isValidDateInput } from "@/utils/date-format";
 
 export const transactionSchema = z.object({
     type: z.enum(["income", "expense"], {
@@ -13,9 +12,9 @@ export const transactionSchema = z.object({
         }),
     transactionDate: z
         .string()
-        .min(1, "Ingresa una fecha")
-        .refine((value) => isValidDateInput(value), {
-            message: "Ingresa una fecha válida en formato DD/MM/YYYY",
+        .min(1, "Selecciona una fecha")
+        .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+            message: "Selecciona una fecha válida",
         }),
     categoryId: z.string().min(1, "Selecciona una categoría"),
     accountId: z.string().min(1, "Selecciona una cuenta"),
