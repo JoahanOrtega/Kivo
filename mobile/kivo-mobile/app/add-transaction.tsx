@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import * as Haptics from "expo-haptics";
@@ -62,6 +62,14 @@ export default function AddTransactionScreen() {
     // al usuario en lugar de mostrar un formulario vacío sin explicación.
     const [hasCatalogError, setHasCatalogError] = useState(false);
 
+    // ─── Parámetro de tipo inicial ────────────────────────────────────────────────
+    // useLocalSearchParams puede devolver undefined en el primer render
+    // porque Expo Router resuelve los params de forma asíncrona.
+    // Por eso no podemos usarlo directamente en defaultValues.
+    const { type: typeParam } = useLocalSearchParams<{
+        type?: "income" | "expense";
+    }>();
+
     // ─── Formulario ───────────────────────────────────────────────────────────
     const {
         control,
@@ -71,10 +79,10 @@ export default function AddTransactionScreen() {
     } = useForm<TransactionFormValues>({
         resolver: zodResolver(transactionSchema),
         defaultValues: {
+            // Siempre inicia en expense — el useEffect de abajo
+            // lo actualiza cuando typeParam esté disponible
             type: "expense",
             amount: "",
-            // Usamos getTodayDateString() en lugar de toISOString()
-            // para evitar el bug de timezone — resuelve problema #4
             transactionDate: getTodayDateString(),
             categoryId: "",
             accountId: "",
@@ -82,6 +90,16 @@ export default function AddTransactionScreen() {
             note: "",
         },
     });
+
+    // ─── Sincronizar tipo con el parámetro de URL ─────────────────────────────
+    // Este useEffect corre cuando typeParam está disponible — después del
+    // primer render. Actualiza el tipo del formulario con el valor elegido
+    // en el ActionSheet.
+    useEffect(() => {
+        if (typeParam === "income" || typeParam === "expense") {
+            setValue("type", typeParam);
+        }
+    }, [typeParam, setValue]);
 
     // Observamos el tipo seleccionado para recargar catálogos
     const selectedType = useWatch({ control, name: "type" });
