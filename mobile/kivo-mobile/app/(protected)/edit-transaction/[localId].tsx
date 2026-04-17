@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import * as Haptics from "expo-haptics";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import {
     ActivityIndicator,
     Alert,
@@ -14,10 +14,15 @@ import {
 
 import { FormScreenContainer } from "@/components/layout/form-screen-container";
 import { AppButton } from "@/components/ui/app-button";
-import { AppCard } from "@/components/ui/app-card";
-import { AppInput } from "@/components/ui/app-input";
 import { useToast } from "@/components/ui/toast-provider";
-import { DateField } from "@/components/ui/date-field";
+
+// ─── Componentes reutilizados de add-transaction ──────────────────────────────
+// No creamos carpeta nueva — estos componentes ya existen y
+// son exactamente lo que necesitamos aquí también.
+import { CatalogSelector } from "@/components/add-transaction/catalog-selector";
+import { TransactionFields } from "@/components/add-transaction/transaction-fields";
+import { TypeSelector } from "@/components/add-transaction/type-selector";
+
 import {
     getAccountsByTransactionType,
     getCategoriesByType,
@@ -40,14 +45,21 @@ export default function EditTransactionScreen() {
     const { localId } = useLocalSearchParams<{ localId: string }>();
     const { showToast } = useToast();
 
+    // ─── Estado: catálogos ────────────────────────────────────────────────────
     const [categories, setCategories] = useState<Category[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
 
+    // ─── Estado: carga y errores ──────────────────────────────────────────────
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasLoadError, setHasLoadError] = useState(false);
+    const [hasCatalogError, setHasCatalogError] = useState(false);
+
+    // ─── Formulario ───────────────────────────────────────────────────────────
     const {
         control,
         handleSubmit,
         reset,
+        setValue,
         formState: { errors, isSubmitting },
     } = useForm<TransactionFormValues>({
         resolver: zodResolver(transactionSchema),
@@ -62,28 +74,31 @@ export default function EditTransactionScreen() {
         },
     });
 
-    const selectedType = useWatch({
-        control,
-        name: "type",
-    });
+    const selectedType = useWatch({ control, name: "type" });
 
+    // ─── Carga de la transacción ──────────────────────────────────────────────
+    // Se ejecuta una sola vez al montar la pantalla.
+    // Precarga el formulario con los valores existentes de la transacción.
     useEffect(() => {
         const loadTransaction = async () => {
-            if (!localId) {
-                return;
-            }
+            if (!localId) return;
 
             try {
                 setIsLoading(true);
+                setHasLoadError(false);
 
                 const transaction = await getTransactionByLocalId(localId);
 
+                // Si no existe la transacción navegamos atrás inmediatamente
                 if (!transaction) {
-                    Alert.alert("Movimiento no encontrado");
+                    showToast("Movimiento no encontrado", "error");
                     router.back();
                     return;
                 }
 
+                // Precargamos el formulario con los valores de la transacción.
+                // reset() reemplaza todos los valores del formulario de una vez,
+                // lo que es más limpio que múltiples llamadas a setValue().
                 reset({
                     type: transaction.type,
                     amount: String(transaction.amount),
@@ -93,6 +108,10 @@ export default function EditTransactionScreen() {
                     concept: transaction.concept ?? "",
                     note: transaction.note ?? "",
                 });
+            } catch {
+                // Si la carga falla mostramos el estado de error
+                // en lugar de dejar el formulario vacío sin explicación.
+                setHasLoadError(true);
             } finally {
                 setIsLoading(false);
             }
@@ -101,24 +120,32 @@ export default function EditTransactionScreen() {
         void loadTransaction();
     }, [localId, reset]);
 
+    // ─── Carga de catálogos ───────────────────────────────────────────────────
+    // Se recarga cada vez que cambia el tipo seleccionado.
     useEffect(() => {
         const loadCatalogs = async () => {
-            const [loadedCategories, loadedAccounts] = await Promise.all([
-                getCategoriesByType(selectedType),
-                getAccountsByTransactionType(selectedType),
-            ]);
+            try {
+                setHasCatalogError(false);
 
-            setCategories(loadedCategories);
-            setAccounts(loadedAccounts);
+                const [loadedCategories, loadedAccounts] = await Promise.all([
+                    getCategoriesByType(selectedType),
+                    getAccountsByTransactionType(selectedType),
+                ]);
+
+                setCategories(loadedCategories);
+                setAccounts(loadedAccounts);
+            } catch {
+                setHasCatalogError(true);
+                showToast("No se pudieron cargar las opciones", "error");
+            }
         };
 
         void loadCatalogs();
     }, [selectedType]);
 
+    // ─── Submit: actualizar ───────────────────────────────────────────────────
     const onSubmit = async (values: TransactionFormValues) => {
-        if (!localId) {
-            return;
-        }
+        if (!localId) return;
 
         try {
             Keyboard.dismiss();
@@ -134,7 +161,6 @@ export default function EditTransactionScreen() {
                 transactionDate: values.transactionDate,
             });
 
-            // Éxito — mismo patrón que en add-transaction
             await Haptics.notificationAsync(
                 Haptics.NotificationFeedbackType.Success
             );
@@ -152,10 +178,10 @@ export default function EditTransactionScreen() {
         }
     };
 
+    // ─── Eliminar ─────────────────────────────────────────────────────────────
+    // Confirmación antes de eliminar — acción irreversible.
     const handleDelete = () => {
-        if (!localId) {
-            return;
-        }
+        if (!localId) return;
 
         Alert.alert(
             "Eliminar movimiento",
@@ -169,9 +195,6 @@ export default function EditTransactionScreen() {
                         try {
                             await deleteTransaction(localId);
 
-                            // Warning para eliminar — más intenso que success,
-                            // menos que error. Le comunica al usuario que algo
-                            // importante acaba de ocurrir de forma irreversible.
                             await Haptics.notificationAsync(
                                 Haptics.NotificationFeedbackType.Warning
                             );
@@ -193,6 +216,7 @@ export default function EditTransactionScreen() {
         );
     };
 
+    // ─── Render: estado de carga ──────────────────────────────────────────────
     if (isLoading) {
         return (
             <FormScreenContainer>
@@ -209,9 +233,73 @@ export default function EditTransactionScreen() {
         );
     }
 
+    // ─── Render: error de carga ───────────────────────────────────────────────
+    if (hasLoadError) {
+        return (
+            <FormScreenContainer>
+                <View
+                    style={{
+                        flex: 1,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        paddingHorizontal: spacing["2xl"],
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: typography.bodyLg,
+                            fontWeight: typography.weightSemibold,
+                            color: colors.text,
+                            textAlign: "center",
+                            marginBottom: spacing.sm,
+                        }}
+                    >
+                        No se pudo cargar el movimiento
+                    </Text>
+
+                    <Text
+                        style={{
+                            fontSize: typography.bodyMd,
+                            color: colors.textMuted,
+                            textAlign: "center",
+                            marginBottom: spacing.xl,
+                            lineHeight: 22,
+                        }}
+                    >
+                        Regresa e intenta de nuevo.
+                    </Text>
+
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        activeOpacity={0.85}
+                        style={{
+                            backgroundColor: colors.primary,
+                            paddingVertical: 12,
+                            paddingHorizontal: spacing["2xl"],
+                            borderRadius: 12,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: colors.white,
+                                fontSize: typography.bodyMd,
+                                fontWeight: typography.weightSemibold,
+                            }}
+                        >
+                            Regresar
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </FormScreenContainer>
+        );
+    }
+
+    // ─── Render: formulario ───────────────────────────────────────────────────
     return (
         <FormScreenContainer>
             <View style={{ flex: 1, paddingVertical: spacing.lg }}>
+
+                {/* ── Header ── */}
                 <View style={{ marginBottom: spacing["2xl"] }}>
                     <Text
                         style={{
@@ -235,262 +323,42 @@ export default function EditTransactionScreen() {
                     </Text>
                 </View>
 
-                <AppCard style={{ marginBottom: spacing.lg }}>
-                    <Text
-                        style={{
-                            fontSize: typography.titleSection,
-                            fontWeight: typography.weightBold,
-                            color: colors.text,
-                            marginBottom: spacing.md,
-                        }}
-                    >
-                        Tipo de movimiento
-                    </Text>
+                {/* ── Selector de tipo ── */}
+                <TypeSelector
+                    value={selectedType}
+                    onChange={(type) => setValue("type", type)}
+                />
 
-                    <Controller
-                        control={control}
-                        name="type"
-                        render={({ field: { value, onChange } }) => (
-                            <View style={{ flexDirection: "row", gap: spacing.md }}>
-                                <TouchableOpacity
-                                    onPress={() => onChange("expense")}
-                                    activeOpacity={0.85}
-                                    style={{
-                                        flex: 1,
-                                        paddingVertical: 16,
-                                        borderRadius: 16,
-                                        borderWidth: 1,
-                                        borderColor:
-                                            value === "expense" ? colors.danger : colors.border,
-                                        backgroundColor:
-                                            value === "expense" ? colors.dangerSoft : colors.white,
-                                    }}
-                                >
-                                    <Text
-                                        style={{
-                                            textAlign: "center",
-                                            color: value === "expense" ? colors.danger : colors.text,
-                                            fontWeight: typography.weightSemibold,
-                                            fontSize: typography.bodyLg,
-                                        }}
-                                    >
-                                        Egreso
-                                    </Text>
-                                </TouchableOpacity>
+                {/* ── Campos del formulario ── */}
+                <TransactionFields
+                    control={control}
+                    errors={errors}
+                />
 
-                                <TouchableOpacity
-                                    onPress={() => onChange("income")}
-                                    activeOpacity={0.85}
-                                    style={{
-                                        flex: 1,
-                                        paddingVertical: 16,
-                                        borderRadius: 16,
-                                        borderWidth: 1,
-                                        borderColor:
-                                            value === "income" ? colors.success : colors.border,
-                                        backgroundColor:
-                                            value === "income" ? colors.successSoft : colors.white,
-                                    }}
-                                >
-                                    <Text
-                                        style={{
-                                            textAlign: "center",
-                                            color: value === "income" ? colors.success : colors.text,
-                                            fontWeight: typography.weightSemibold,
-                                            fontSize: typography.bodyLg,
-                                        }}
-                                    >
-                                        Ingreso
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    />
-                </AppCard>
+                {/* ── Selector de categoría ── */}
+                <CatalogSelector
+                    title="Categoría"
+                    options={categories}
+                    selectedId={control._formValues.categoryId}
+                    onChange={(id) => setValue("categoryId", id)}
+                    error={errors.categoryId?.message}
+                />
 
-                <AppCard style={{ marginBottom: spacing.lg }}>
-                    <Controller
-                        control={control}
-                        name="amount"
-                        render={({ field: { value, onChange } }) => (
-                            <AppInput
-                                label="Monto"
-                                value={value}
-                                onChangeText={onChange}
-                                placeholder="0.00"
-                                keyboardType="numeric"
-                                error={errors.amount?.message}
-                                inputStyle={{
-                                    fontSize: 28,
-                                    fontWeight: typography.weightBold,
-                                    paddingVertical: 18,
-                                }}
-                            />
-                        )}
-                    />
-
-                    <Controller
-                        control={control}
-                        name="transactionDate"
-                        render={({ field: { value, onChange } }) => (
-                            <DateField
-                                label="Fecha"
-                                value={value}
-                                onChange={onChange}
-                                error={errors.transactionDate?.message}
-                            />
-                        )}
-                    />
-
-                    <Controller
-                        control={control}
-                        name="concept"
-                        render={({ field: { value, onChange } }) => (
-                            <AppInput
-                                label="Concepto"
-                                value={value ?? ""}
-                                onChangeText={onChange}
-                                placeholder="Ej. DiDi, Nómina, Apple bill"
-                            />
-                        )}
-                    />
-
-                    <Controller
-                        control={control}
-                        name="note"
-                        render={({ field: { value, onChange } }) => (
-                            <AppInput
-                                label="Nota"
-                                value={value ?? ""}
-                                onChangeText={onChange}
-                                placeholder="Opcional"
-                            />
-                        )}
-                    />
-                </AppCard>
-
-                <AppCard style={{ marginBottom: spacing.lg }}>
-                    <Text
-                        style={{
-                            fontSize: typography.titleSection,
-                            fontWeight: typography.weightBold,
-                            color: colors.text,
-                            marginBottom: spacing.md,
-                        }}
-                    >
-                        Categoría
-                    </Text>
-
-                    <Controller
-                        control={control}
-                        name="categoryId"
-                        render={({ field: { value, onChange } }) => (
-                            <View style={{ gap: spacing.sm }}>
-                                {categories.map((category) => {
-                                    const isSelected = value === category.id;
-
-                                    return (
-                                        <TouchableOpacity
-                                            key={category.id}
-                                            onPress={() => onChange(category.id)}
-                                            activeOpacity={0.85}
-                                            style={{
-                                                paddingVertical: 15,
-                                                paddingHorizontal: 14,
-                                                borderRadius: 16,
-                                                borderWidth: 1,
-                                                borderColor: isSelected
-                                                    ? colors.primary
-                                                    : colors.border,
-                                                backgroundColor: isSelected
-                                                    ? colors.primarySoft
-                                                    : colors.white,
-                                            }}
-                                        >
-                                            <Text
-                                                style={{
-                                                    color: isSelected ? colors.primary : colors.text,
-                                                    fontWeight: typography.weightSemibold,
-                                                    fontSize: typography.bodyLg,
-                                                }}
-                                            >
-                                                {category.name}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                        )}
-                    />
-                </AppCard>
-
-                <AppCard style={{ marginBottom: spacing.lg }}>
-                    <Text
-                        style={{
-                            fontSize: typography.titleSection,
-                            fontWeight: typography.weightBold,
-                            color: colors.text,
-                            marginBottom: spacing.xs,
-                        }}
-                    >
-                        Cuenta
-                    </Text>
-
-                    <Text
-                        style={{
-                            fontSize: typography.bodySm,
-                            color: colors.textMuted,
-                            marginBottom: spacing.md,
-                        }}
-                    >
-                        {selectedType === "expense"
+                {/* ── Selector de cuenta ── */}
+                <CatalogSelector
+                    title="Cuenta"
+                    description={
+                        selectedType === "expense"
                             ? "Selecciona desde dónde salió el dinero."
-                            : "Selecciona a dónde entró el dinero."}
-                    </Text>
+                            : "Selecciona a dónde entró el dinero."
+                    }
+                    options={accounts}
+                    selectedId={control._formValues.accountId}
+                    onChange={(id) => setValue("accountId", id)}
+                    error={errors.accountId?.message}
+                />
 
-                    <Controller
-                        control={control}
-                        name="accountId"
-                        render={({ field: { value, onChange } }) => (
-                            <View style={{ gap: spacing.sm }}>
-                                {accounts.map((account) => {
-                                    const isSelected = value === account.id;
-
-                                    return (
-                                        <TouchableOpacity
-                                            key={account.id}
-                                            onPress={() => onChange(account.id)}
-                                            activeOpacity={0.85}
-                                            style={{
-                                                paddingVertical: 15,
-                                                paddingHorizontal: 14,
-                                                borderRadius: 16,
-                                                borderWidth: 1,
-                                                borderColor: isSelected
-                                                    ? colors.primary
-                                                    : colors.border,
-                                                backgroundColor: isSelected
-                                                    ? colors.primarySoft
-                                                    : colors.white,
-                                            }}
-                                        >
-                                            <Text
-                                                style={{
-                                                    color: isSelected ? colors.primary : colors.text,
-                                                    fontWeight: typography.weightSemibold,
-                                                    fontSize: typography.bodyLg,
-                                                }}
-                                            >
-                                                {account.name}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                        )}
-                    />
-                </AppCard>
-
+                {/* ── Botón guardar cambios ── */}
                 <AppButton
                     label={isSubmitting ? "Guardando cambios..." : "Guardar cambios"}
                     onPress={handleSubmit(onSubmit)}
@@ -498,11 +366,16 @@ export default function EditTransactionScreen() {
                     style={{ marginBottom: spacing.md }}
                 />
 
-                <AppButton
-                    label="Eliminar movimiento"
-                    onPress={handleDelete}
-                    variant="secondary"
-                />
+                {/* ── Botón eliminar ── */}
+                {/* Solo visible si los catálogos cargaron correctamente.
+                    No tiene sentido eliminar si el formulario está roto. */}
+                {!hasCatalogError && (
+                    <AppButton
+                        label="Eliminar movimiento"
+                        onPress={handleDelete}
+                        variant="secondary"
+                    />
+                )}
             </View>
         </FormScreenContainer>
     );
