@@ -1,0 +1,42 @@
+[package]
+name = "kivo-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Framework HTTP — equivalente a Express en Node.js
+axum = "0.7"
+
+# Runtime async — Axum lo requiere para manejar concurrencia
+tokio = { version = "1", features = ["full"] }
+
+# Driver de PostgreSQL async con queries verificadas en compilación
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+
+# Tipos UUID — para los IDs de los registros
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Fechas y timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Serialización/deserialización JSON — equivalente a JSON.parse/stringify
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Variables de entorno desde archivo .env
+dotenvy = "0.15"
+
+# Hashing de contraseñas con bcrypt
+bcrypt = "0.15"
+
+# JWT para autenticación
+jsonwebtoken = "9"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Manejo de errores HTTP
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
