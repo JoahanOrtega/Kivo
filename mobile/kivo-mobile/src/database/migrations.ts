@@ -8,7 +8,15 @@ export async function initializeDatabase(): Promise<void> {
   const db = await getDatabase();
 
   await db.execAsync(`
+    -- Activa el modo Write-Ahead Logging para mejor performance
+    -- en escrituras concurrentes (ej: sync corriendo en background).
     PRAGMA journal_mode = WAL;
+
+    -- Activa la validación de foreign keys.
+    -- SQLite las desactiva por defecto por compatibilidad histórica.
+    -- Sin esto, puedes guardar una transacción con category_id inválido
+    -- y SQLite no te avisará — los datos quedan corruptos silenciosamente.
+    PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY NOT NULL,
