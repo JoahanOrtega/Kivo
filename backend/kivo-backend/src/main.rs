@@ -61,6 +61,7 @@ async fn main() {
     let app = Router::new()
     .merge(handlers::health::router())
     .merge(handlers::auth::router())
+    .merge(handlers::transactions::router())
     .with_state(pool);
 
     // ─── 5. Iniciar el servidor ───────────────────────────────────────────────

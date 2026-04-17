@@ -11,7 +11,6 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::models::user::{AuthResponse, CreateUserDto, LoginDto, User, UserPublic};

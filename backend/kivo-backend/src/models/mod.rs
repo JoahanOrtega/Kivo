@@ -2,4 +2,5 @@
 // models/mod.rs — Módulos de modelos
 // =============================================================================
 
+pub mod transaction;
 pub mod user;
