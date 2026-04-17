@@ -25,7 +25,6 @@ interface TransactionItemProps {
 }
 
 // ─── Helper: formatear fecha ──────────────────────────────────────────────────
-// Resuelve el problema #2 del análisis de history.tsx.
 //
 // El problema original:
 //   new Date("2026-01-15").toLocaleString()
