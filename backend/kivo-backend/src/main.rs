@@ -62,6 +62,7 @@ async fn main() {
         .merge(handlers::auth::router())
         .merge(handlers::transactions::router())
         .merge(handlers::categories::router())
+        .merge(handlers::payment_methods::router())
         .with_state(pool);
 
     // ─── 5. Iniciar el servidor ───────────────────────────────────────────────
