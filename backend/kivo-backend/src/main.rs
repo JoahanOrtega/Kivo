@@ -9,9 +9,8 @@
 // 5. Iniciar el servidor HTTP
 // =============================================================================
 
-use std::net::SocketAddr;
-
 use axum::Router;
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -54,9 +53,10 @@ async fn main() {
 
     info!("Conexión a PostgreSQL establecida");
 
-    // ─── 4. Construir el router ───────────────────────────────────────────────
-    // Todas las rutas se definen aquí. Cada módulo de handlers
-    // expone una función que retorna su sub-router.
+    // ─── Construir el router ──────────────────────────────────────────────────────
+    // Rate limiting removido temporalmente — tower_governor no es compatible
+    // con el extractor de IP en desarrollo local.
+    // Se implementará correctamente en el deploy con un reverse proxy (nginx/cloudflare).
     let app = Router::new()
         .merge(handlers::health::router())
         .merge(handlers::auth::router())

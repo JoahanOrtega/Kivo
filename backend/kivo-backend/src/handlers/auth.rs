@@ -39,7 +39,6 @@ async fn register(
     // Json deserializa el body del request a CreateUserDto
     Json(dto): Json<CreateUserDto>,
 ) -> Result<Json<AuthResponse>, AppError> {
-
     // ── Validaciones básicas ──────────────────────────────────────────────────
     let email = dto.email.trim().to_lowercase();
 
@@ -49,7 +48,7 @@ async fn register(
 
     if dto.password.len() < 6 {
         return Err(AppError::BadRequest(
-            "La contraseña debe tener al menos 6 caracteres".to_string()
+            "La contraseña debe tener al menos 6 caracteres".to_string(),
         ));
     }
 
@@ -61,8 +60,8 @@ async fn register(
     // bcrypt con costo 12 — balance entre seguridad y velocidad.
     // hash() es una operación costosa intencionalmente para dificultar
     // ataques de fuerza bruta.
-    let password_hash = hash(&dto.password, DEFAULT_COST)
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+    let password_hash =
+        hash(&dto.password, DEFAULT_COST).map_err(|e| AppError::InternalError(e.to_string()))?;
 
     // ── Insertar usuario en BD ────────────────────────────────────────────────
     // Si el email ya existe, sqlx retorna un error de unique violation
@@ -81,11 +80,30 @@ async fn register(
     .fetch_one(&pool)
     .await?;
 
-    // ── Generar JWT ───────────────────────────────────────────────────────────
-    let token = generate_jwt(&user)?;
+    // ── Generar tokens ────────────────────────────────────────────────────────
+    let access_token = generate_jwt(&user)?;
+    let refresh_token_value = generate_refresh_token();
+    let refresh_token_hash = hash_refresh_token(&refresh_token_value);
+
+    // Guardamos el refresh token hasheado en la BD
+    // expires_at = 30 días desde ahora
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(30);
+
+    sqlx::query!(
+        r#"
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+    VALUES ($1, $2, $3)
+    "#,
+        user.id,
+        refresh_token_hash,
+        expires_at
+    )
+    .execute(&pool)
+    .await?;
 
     Ok(Json(AuthResponse {
-        access_token: token,
+        access_token,
+        refresh_token: refresh_token_value,
         token_type: "Bearer".to_string(),
         user: UserPublic::from(user),
     }))
@@ -97,7 +115,6 @@ async fn login(
     State(pool): State<PgPool>,
     Json(dto): Json<LoginDto>,
 ) -> Result<Json<AuthResponse>, AppError> {
-
     let email = dto.email.trim().to_lowercase();
 
     // ── Buscar usuario por email ──────────────────────────────────────────────
@@ -114,9 +131,7 @@ async fn login(
 
     // Usamos el mismo mensaje de error para "usuario no encontrado" y
     // "contraseña incorrecta" — no queremos revelar si el email existe.
-    let user = user.ok_or_else(|| {
-        AppError::Unauthorized("Credenciales inválidas".to_string())
-    })?;
+    let user = user.ok_or_else(|| AppError::Unauthorized("Credenciales inválidas".to_string()))?;
 
     // ── Verificar contraseña ──────────────────────────────────────────────────
     let password_valid = verify(&dto.password, &user.password_hash)
@@ -126,11 +141,30 @@ async fn login(
         return Err(AppError::Unauthorized("Credenciales inválidas".to_string()));
     }
 
-    // ── Generar JWT ───────────────────────────────────────────────────────────
-    let token = generate_jwt(&user)?;
+    // ── Generar tokens ────────────────────────────────────────────────────────
+    let access_token = generate_jwt(&user)?;
+    let refresh_token_value = generate_refresh_token();
+    let refresh_token_hash = hash_refresh_token(&refresh_token_value);
+
+    // Guardamos el refresh token hasheado en la BD
+    // expires_at = 30 días desde ahora
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(30);
+
+    sqlx::query!(
+        r#"
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+    VALUES ($1, $2, $3)
+    "#,
+        user.id,
+        refresh_token_hash,
+        expires_at
+    )
+    .execute(&pool)
+    .await?;
 
     Ok(Json(AuthResponse {
-        access_token: token,
+        access_token,
+        refresh_token: refresh_token_value,
         token_type: "Bearer".to_string(),
         user: UserPublic::from(user),
     }))
@@ -166,10 +200,86 @@ fn generate_jwt(user: &User) -> Result<String, AppError> {
     .map_err(|e| AppError::InternalError(e.to_string()))
 }
 
+// ─── Helper: generar refresh token ───────────────────────────────────────────
+// El refresh token es un UUID aleatorio — no contiene datos del usuario.
+// Se almacena hasheado en la BD para que si la BD se compromete,
+// los tokens no sean válidos directamente.
+fn generate_refresh_token() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+// ─── Helper: hashear refresh token ───────────────────────────────────────────
+fn hash_refresh_token(token: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    token.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
+// ─── DTO: refresh token ───────────────────────────────────────────────────────
+#[derive(Debug, Deserialize)]
+pub struct RefreshTokenDto {
+    pub refresh_token: String,
+}
+
+// ─── Handler: POST /auth/refresh ─────────────────────────────────────────────
+// Recibe un refresh token válido y retorna un nuevo access token.
+// No requiere que el usuario esté logueado — es el mecanismo de renovación.
+async fn refresh_token(
+    State(pool): State<PgPool>,
+    Json(dto): Json<RefreshTokenDto>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let token_hash = hash_refresh_token(&dto.refresh_token);
+
+    // Buscar el refresh token en la BD
+    let token_row = sqlx::query!(
+        r#"
+        SELECT rt.user_id, rt.expires_at, rt.is_revoked
+        FROM refresh_tokens rt
+        WHERE rt.token_hash = $1
+        "#,
+        token_hash
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    let token_row =
+        token_row.ok_or_else(|| AppError::Unauthorized("Refresh token inválido".to_string()))?;
+
+    // Verificar que no está revocado ni expirado
+    if token_row.is_revoked {
+        return Err(AppError::Unauthorized("Refresh token revocado".to_string()));
+    }
+
+    if token_row.expires_at < chrono::Utc::now() {
+        return Err(AppError::Unauthorized("Refresh token expirado".to_string()));
+    }
+
+    // Obtener datos del usuario
+    let user = sqlx::query_as!(
+        crate::models::user::User,
+        "SELECT * FROM users WHERE id = $1 AND is_active = TRUE",
+        token_row.user_id
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::Unauthorized("Usuario no encontrado".to_string()))?;
+
+    // Generar nuevo access token
+    let new_access_token = generate_jwt(&user)?;
+
+    Ok(Json(serde_json::json!({
+        "access_token": new_access_token,
+        "token_type": "Bearer"
+    })))
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 // Expone las rutas de auth para registrarlas en main.rs
 pub fn router() -> Router<PgPool> {
     Router::new()
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
+        .route("/auth/refresh", post(refresh_token))
 }
