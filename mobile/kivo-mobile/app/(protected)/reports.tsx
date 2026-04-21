@@ -17,6 +17,29 @@ const CHART_COLORS = [
     "#7C3AED", "#0891B2", "#DB2777", "#65A30D",
 ];
 
+// ─── Helper: últimos 6 meses ──────────────────────────────────────────────────
+// Genera un array con los últimos 6 meses desde el mes seleccionado.
+function getLast6Months(year: number, month: number) {
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+        let m = month - i;
+        let y = year;
+        if (m <= 0) {
+            m += 12;
+            y -= 1;
+        }
+        months.push({ year: y, month: m });
+    }
+    return months;
+}
+
+// ─── Helper: nombre corto del mes ─────────────────────────────────────────────
+function getShortMonthName(month: number): string {
+    const names = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    return names[month - 1];
+}
+
 export default function ReportsScreen() {
     const now = new Date();
 
@@ -25,6 +48,13 @@ export default function ReportsScreen() {
     const [report, setReport] = useState<MonthlyReportData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
+    const [trendData, setTrendData] = useState<Array<{
+        month: number;
+        year: number;
+        income: number;
+        expense: number;
+    }>>([]);
+    const [isTrendLoading, setIsTrendLoading] = useState(true);
 
     // ─── Carga del reporte ────────────────────────────────────────────────────
     const loadReport = useCallback(async () => {
@@ -40,11 +70,40 @@ export default function ReportsScreen() {
         }
     }, [selectedYear, selectedMonth]);
 
+    // ─── Carga de tendencia 6 meses ───────────────────────────────────────────────
+    const loadTrend = useCallback(async () => {
+        try {
+            setIsTrendLoading(true);
+            const months = getLast6Months(selectedYear, selectedMonth);
+
+            // Cargamos todos los meses en paralelo
+            const results = await Promise.all(
+                months.map((m) => getMonthlyReport(m.year, m.month))
+            );
+
+            setTrendData(
+                results.map((r, i) => ({
+                    month: months[i].month,
+                    year: months[i].year,
+                    income: r.total_income,
+                    expense: r.total_expense,
+                }))
+            );
+        } catch {
+            // Si falla la tendencia no bloqueamos el resto del reporte
+            console.warn("No se pudo cargar la tendencia");
+        } finally {
+            setIsTrendLoading(false);
+        }
+    }, [selectedYear, selectedMonth]);
+
     useFocusEffect(
         useCallback(() => {
             void loadReport();
-        }, [loadReport])
+            void loadTrend();
+        }, [loadReport, loadTrend])
     );
+
 
     // ─── Navegación entre meses ───────────────────────────────────────────────
     const handlePreviousMonth = () => {
@@ -228,6 +287,69 @@ export default function ReportsScreen() {
                                     noOfSections={4}
                                     maxValue={Math.max(report?.total_income ?? 0, report?.total_expense ?? 0) * 1.2}
                                 />
+                            </AppCard>
+
+                            {/* ── Tendencia 6 meses ── */}
+                            <AppCard>
+                                <Text style={{
+                                    fontSize: typography.titleSection,
+                                    fontWeight: typography.weightBold,
+                                    color: colors.text,
+                                    marginBottom: spacing.lg,
+                                }}>
+                                    Tendencia — 6 meses
+                                </Text>
+
+                                {isTrendLoading ? (
+                                    <ActivityIndicator color={colors.primary} />
+                                ) : (
+                                    <>
+                                        {/* Gráfica de líneas con barras agrupadas */}
+                                        <BarChart
+                                            data={trendData.flatMap((d, i) => [
+                                                {
+                                                    value: d.income,
+                                                    label: getShortMonthName(d.month),
+                                                    frontColor: colors.success,
+                                                    spacing: 2,
+                                                    barWidth: 16,
+                                                },
+                                                {
+                                                    value: d.expense,
+                                                    frontColor: colors.danger,
+                                                    barWidth: 16,
+                                                    spacing: i < trendData.length - 1 ? 12 : 0,
+                                                },
+                                            ])}
+                                            width={280}
+                                            height={160}
+                                            hideRules
+                                            xAxisThickness={1}
+                                            yAxisThickness={0}
+                                            yAxisTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+                                            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+                                            noOfSections={3}
+                                            roundedTop
+                                        />
+
+                                        {/* Leyenda */}
+                                        <View style={{
+                                            flexDirection: "row",
+                                            gap: spacing.lg,
+                                            marginTop: spacing.md,
+                                            justifyContent: "center",
+                                        }}>
+                                            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                                                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: colors.success }} />
+                                                <Text style={{ color: colors.textMuted, fontSize: typography.bodySm }}>Ingresos</Text>
+                                            </View>
+                                            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                                                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: colors.danger }} />
+                                                <Text style={{ color: colors.textMuted, fontSize: typography.bodySm }}>Egresos</Text>
+                                            </View>
+                                        </View>
+                                    </>
+                                )}
                             </AppCard>
 
                             {/* ── Gráfica de dona — por categoría ── */}
