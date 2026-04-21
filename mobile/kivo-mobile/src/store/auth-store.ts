@@ -72,7 +72,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         // ── Sincronizar catálogos del backend hacia SQLite ──────────────────────
         // Se ejecuta en background después del login — no bloquea la navegación.
         // Actualiza los UUIDs locales con los reales del servidor.
-        await bootstrapCatalogs();
+        await bootstrapCatalogs(response.user.id);
+        // Notifica al dashboard que los datos están listos
+        import("@/store/sync-store").then(({ useSyncStore }) => {
+            useSyncStore.getState().notifySyncCompleted();
+        });
     },
 
     // ─── Register real contra el backend ─────────────────────────────────────
@@ -106,7 +110,11 @@ export const useAuthStore = create<AuthState>((set) => ({
             session,
             isAuthenticated: true,
         });
-        await bootstrapCatalogs();
+        await bootstrapCatalogs(response.user.id);
+        // Notifica al dashboard que los datos están listos
+        import("@/store/sync-store").then(({ useSyncStore }) => {
+            useSyncStore.getState().notifySyncCompleted();
+        });
     },
 
     // ─── Logout ───────────────────────────────────────────────────────────────

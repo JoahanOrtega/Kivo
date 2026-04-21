@@ -1,21 +1,17 @@
 // =============================================================================
-// bootstrap.service.ts — Sincronización inicial de catálogos
+// bootstrap.service.ts — Sincronización inicial de catálogos y datos
 //
 // Se ejecuta una vez tras el login exitoso.
-// Descarga categorías y métodos de pago del backend y los guarda
-// en SQLite local con sus UUIDs reales.
-//
-// Esto es fundamental para offline-first — los UUIDs locales deben
-// coincidir con los del servidor para que el sync funcione correctamente.
+// Descarga del backend:
+// 1. Categorías del sistema y del usuario
+// 2. Métodos de pago del usuario
+// 3. Transacciones del mes actual
 // =============================================================================
 
 import { getDatabase } from "@/database/db";
 import * as api from "@/services/api";
 
 // ─── Sincronizar categorías ───────────────────────────────────────────────────
-// Descarga las categorías del backend y las upserta en SQLite.
-// UPSERT = INSERT si no existe, UPDATE si ya existe.
-// Esto permite re-ejecutar el bootstrap sin duplicar datos.
 async function syncCategories(): Promise<void> {
     const db = await getDatabase();
     const categories = await api.getCategories() as any[];
@@ -54,7 +50,6 @@ async function syncCategories(): Promise<void> {
 }
 
 // ─── Sincronizar métodos de pago ──────────────────────────────────────────────
-// Descarga los métodos de pago del usuario y los upserta en SQLite.
 async function syncPaymentMethods(): Promise<void> {
     const db = await getDatabase();
     const methods = await api.getPaymentMethods() as any[];
@@ -92,16 +87,74 @@ async function syncPaymentMethods(): Promise<void> {
     }
 }
 
+// ─── Sincronizar transacciones del mes actual ─────────────────────────────────
+// Descarga las transacciones del mes actual del backend y las guarda
+// en SQLite con sync_status = 'synced' para que no se vuelvan a subir.
+async function syncTransactions(userId: string): Promise<void> {
+    const db = await getDatabase();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    const transactions = await api.getTransactions(year, month) as any[];
+
+    for (const tx of transactions) {
+        await db.runAsync(
+            `
+            INSERT INTO transactions (
+                id, user_id, category_id, payment_method_id,
+                transaction_date, type, concept,
+                amount, budgeted_amount, notes,
+                deleted_at, created_at, updated_at, sync_status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 'synced')
+            ON CONFLICT(id) DO UPDATE SET
+                category_id         = excluded.category_id,
+                payment_method_id   = excluded.payment_method_id,
+                transaction_date    = excluded.transaction_date,
+                type                = excluded.type,
+                concept             = excluded.concept,
+                amount              = excluded.amount,
+                budgeted_amount     = excluded.budgeted_amount,
+                notes               = excluded.notes,
+                updated_at          = excluded.updated_at,
+                sync_status         = 'synced'
+            `,
+            [
+                tx.id,
+                userId,
+                tx.category_id,
+                tx.payment_method_id ?? null,
+                tx.transaction_date,
+                tx.type,
+                tx.concept ?? null,
+                tx.amount,
+                tx.budgeted_amount ?? null,
+                tx.notes ?? null,
+                tx.created_at,
+                tx.updated_at,
+            ]
+        );
+    }
+
+    console.log(`Bootstrap: ${transactions.length} transacciones descargadas`);
+}
+
 // ─── Bootstrap completo ───────────────────────────────────────────────────────
-// Ejecuta la sincronización de todos los catálogos en paralelo.
-// Se llama justo después del login exitoso.
-export async function bootstrapCatalogs(): Promise<void> {
+export async function bootstrapCatalogs(userId: string): Promise<void> {
     try {
         console.log("Bootstrap: iniciando...");
+
+        // Catálogos en paralelo — no dependen entre sí
         await Promise.all([
             syncCategories(),
             syncPaymentMethods(),
         ]);
+
+        // Transacciones después — necesita que las categorías existan
+        // para que el JOIN del dashboard funcione correctamente
+        await syncTransactions(userId);
+
         console.log("Bootstrap: completado");
     } catch (error) {
         console.warn("Bootstrap de catálogos falló:", error);
