@@ -19,7 +19,6 @@ pnpm-debug.log*
 
 # Rust
 target/
-Cargo.lock
 
 # IDE
 .vscode/
