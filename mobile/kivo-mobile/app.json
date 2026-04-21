@@ -21,28 +21,30 @@
       }
     },
     "android": {
+      "package": "com.johan.kivo",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      "expo-sqlite",
-      "expo-secure-store",
-      "@react-native-community/datetimepicker"
-    ],
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "a94319c0-6481-47fa-8cdf-34889ca1d34d"
-      }
-    },
-    "owner": "joahangab"
-  }
+    }
+  },
+  "web": {
+    "favicon": "./assets/favicon.png"
+  },
+  "plugins": [
+    "expo-router",
+    "expo-sqlite",
+    "expo-secure-store",
+    "@react-native-community/datetimepicker"
+  ],
+  "extra": {
+    "router": {},
+    "eas": {
+      "projectId": "a94319c0-6481-47fa-8cdf-34889ca1d34d"
+    }
+  },
+  "owner": "joahangab"
+}
 }
