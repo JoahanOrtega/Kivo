@@ -160,11 +160,6 @@ export default function ProtectedLayout() {
                         ),
                     }}
                 />
-
-                <Tabs.Screen
-                    name="edit-transaction/[localId]"
-                    options={{ href: null }}
-                />
             </Tabs>
 
             <ActionSheet

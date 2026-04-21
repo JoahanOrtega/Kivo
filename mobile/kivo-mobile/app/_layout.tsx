@@ -68,15 +68,8 @@ export default function RootLayout() {
                     <>
                         <StatusBar style="dark" />
                         <Stack screenOptions={{ headerShown: false }}>
-                            {/* ── Pantallas de auth ── */}
                             <Stack.Screen name="(auth)" />
-
-                            {/* ── Tabs principales ── */}
                             <Stack.Screen name="(protected)" />
-
-                            {/* ── Pantallas secundarias con swipe back en iOS ──
-            Estas pantallas viven en el Stack raíz para que
-            el gesto de regresar funcione correctamente. */}
                             <Stack.Screen
                                 name="add-transaction"
                                 options={{
@@ -85,17 +78,12 @@ export default function RootLayout() {
                                 }}
                             />
                             <Stack.Screen
-                                name="history"
-                                options={{
-                                    animation: "slide_from_right",
-                                }}
-                            />
-                            <Stack.Screen
                                 name="sync-inspector"
                                 options={{
                                     animation: "slide_from_right",
                                 }}
                             />
+                            {/* ── edit-transaction vive en el Stack raíz para swipe back en iOS ── */}
                             <Stack.Screen
                                 name="edit-transaction/[localId]"
                                 options={{
